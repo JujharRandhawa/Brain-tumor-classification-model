@@ -25,12 +25,13 @@ def build_model(config: dict, trainable_base: bool = False) -> tf.keras.Model:
     base = EfficientNetB3(
         include_top=False,
         weights=model_cfg["weights"],
-        input_tensor=inputs,
+        input_shape=(*image_size, config["data"]["channels"]),
         pooling="avg",
     )
     base.trainable = trainable_base
 
-    x = layers.Dropout(model_cfg["dropout_rate"])(base.output)
+    x = base(inputs)
+    x = layers.Dropout(model_cfg["dropout_rate"])(x)
     x = layers.Dense(model_cfg["dense_units"], activation="relu", name="dense_head")(x)
     x = layers.Dropout(model_cfg["dropout_rate"])(x)
     outputs = layers.Dense(1, activation="sigmoid", name="tumor_probability")(x)
@@ -58,9 +59,15 @@ def unfreeze_base(model: tf.keras.Model, fine_tune_at: int) -> tf.keras.Model:
     """Unfreeze top layers of EfficientNet for fine-tuning."""
     base = None
     for layer in model.layers:
-        if isinstance(layer, tf.keras.Model) and "efficientnet" in layer.name.lower():
-            base = layer
-            break
+        if isinstance(layer, tf.keras.Model):
+            if "efficientnet" in layer.name.lower():
+                base = layer
+                break
+    if base is None:
+        for layer in model.layers:
+            if isinstance(layer, tf.keras.Model):
+                base = layer
+                break
     if base is None:
         logger.warning("EfficientNet base not found; skipping fine-tune unfreeze.")
         return model

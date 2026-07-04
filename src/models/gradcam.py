@@ -22,22 +22,51 @@ class GradCAM:
         self.last_conv_layer_name = find_last_conv_layer(model, last_conv_layer_name)
         self.grad_model = self._build_grad_model()
 
-    def _build_grad_model(self) -> tf.keras.Model:
-        conv_output = self._get_conv_output_tensor()
-        grad_model = tf.keras.Model(
-            inputs=self.model.inputs,
-            outputs=[conv_output, self.model.output],
-        )
-        return grad_model
-
-    def _get_conv_output_tensor(self):
+    def _get_backbone(self) -> tf.keras.Model | None:
         for layer in self.model.layers:
             if isinstance(layer, tf.keras.Model):
-                try:
-                    return layer.get_layer(self.last_conv_layer_name).output
-                except ValueError:
-                    continue
-        return self.model.get_layer(self.last_conv_layer_name).output
+                return layer
+        return None
+
+    def _apply_classification_head(self, conv_output: tf.Tensor) -> tf.Tensor:
+        """Reattach trained head layers so gradients flow to conv activations."""
+        x = tf.keras.layers.GlobalAveragePooling2D()(conv_output)
+        for layer in self.model.layers:
+            if isinstance(layer, tf.keras.Model):
+                continue
+            if layer.__class__.__name__ == "InputLayer":
+                continue
+            x = layer(x)
+        return x
+
+    def _build_grad_model(self) -> tf.keras.Model:
+        """
+        Build a sub-model with a single connected graph from input -> conv -> head.
+
+        EfficientNet is nested with its own input node; we route the outer MRI input
+        through a conv extractor, then rebuild the classification head on top so
+        Grad-CAM gradients are non-zero in Keras 3.
+        """
+        model_input = self.model.input
+        backbone = self._get_backbone()
+
+        if backbone is not None:
+            conv_extractor = tf.keras.Model(
+                inputs=backbone.input,
+                outputs=backbone.get_layer(self.last_conv_layer_name).output,
+                name="conv_extractor",
+            )
+            conv_output = conv_extractor(model_input)
+            prediction = self._apply_classification_head(conv_output)
+        else:
+            conv_output = self.model.get_layer(self.last_conv_layer_name).output
+            prediction = self.model.output
+
+        return tf.keras.Model(
+            inputs=model_input,
+            outputs=[conv_output, prediction],
+            name="gradcam_model",
+        )
 
     def compute_heatmap(
         self,
@@ -57,6 +86,12 @@ class GradCAM:
                 loss = predictions[:, pred_index]
 
         grads = tape.gradient(loss, conv_outputs)
+        if grads is None:
+            raise RuntimeError(
+                f"Could not compute gradients for layer '{self.last_conv_layer_name}'. "
+                "Verify the layer is part of the model's forward graph."
+            )
+
         pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
         conv_outputs = conv_outputs[0]
         heatmap = tf.reduce_sum(tf.multiply(pooled_grads, conv_outputs), axis=-1)

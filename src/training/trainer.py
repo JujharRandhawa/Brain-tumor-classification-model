@@ -79,16 +79,15 @@ def train_model(
     history_combined.update(history_1.history)
 
     # Phase 2 — fine-tune
-    logger.info("Phase 2: fine-tuning EfficientNet layers")
+    logger.info("Phase 2: fine-tuning EfficientNet layers (%d more epochs)", train_cfg["epochs"] - len(history_1.epoch))
     model = tf.keras.models.load_model(str(model_path))
     model = unfreeze_base(model, train_cfg["fine_tune_at"])
     compile_model(model, train_cfg["learning_rate"] * 0.1)
 
-    remaining_epochs = max(train_cfg["epochs"] - len(history_1.epoch), 1)
     history_2 = model.fit(
         train_ds,
         validation_data=val_ds,
-        epochs=remaining_epochs,
+        epochs=train_cfg["epochs"],
         initial_epoch=len(history_1.epoch),
         callbacks=_build_callbacks(config, model_path),
         **fit_kwargs,
