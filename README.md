@@ -31,7 +31,9 @@ A production-ready research pipeline that classifies brain MRI scans as tumorous
 │   ├── download_data.py      # Kaggle dataset download
 │   ├── train.py              # Full training pipeline
 │   ├── evaluate.py           # Test-set evaluation
-│   └── run_dashboard.py      # Launch dashboard
+│   ├── run_dashboard.py      # Launch dashboard
+│   ├── verify_dashboard.py   # Verify saved model + Grad-CAM
+│   └── verify_model.py       # Verify sample predictions
 ├── src/
 │   ├── config.py
 │   ├── data/
@@ -68,6 +70,39 @@ Download via `kagglehub`:
 import kagglehub
 path = kagglehub.dataset_download("navoneel/brain-mri-images-for-brain-tumor-detection")
 ```
+
+---
+
+## Pre-trained Model Weights
+
+The trained model file (`models/efficientnetb3_brain_tumor.keras`) is **not included in this repository**. Model checkpoints, raw MRI images, and training outputs are excluded via `.gitignore` to keep the repo lightweight and avoid committing large binary files.
+
+**To run the dashboard or any inference script, train the model locally first:**
+
+```bash
+python scripts/download_data.py
+python scripts/train.py
+```
+
+Training takes roughly **30–90 minutes on CPU** (Ryzen 7 class hardware). When it finishes, weights are saved to `models/efficientnetb3_brain_tumor.keras` and evaluation metrics are written to `outputs/`.
+
+**Verify everything works before demoing:**
+
+```bash
+python scripts/verify_dashboard.py   # saved model + Grad-CAM path
+python scripts/verify_model.py       # sample predictions on yes/no images
+python scripts/run_dashboard.py      # launch UI at http://localhost:8501
+```
+
+**For portfolio reviewers or quick demos:** You can publish the trained `.keras` file as a [GitHub Release](https://github.com/JujharRandhawa/Brain-tumor-classification-model/releases) asset. Downloaders should place it at:
+
+```
+models/efficientnetb3_brain_tumor.keras
+```
+
+Then they can skip training and go straight to `python scripts/run_dashboard.py`.
+
+**Reported test performance (local run):** 84.2% accuracy, 0.954 AUC on the held-out test split.
 
 ---
 
