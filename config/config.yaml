@@ -1,0 +1,61 @@
+project:
+  name: "Explainable Brain Tumor Characterization"
+  version: "1.0.0"
+
+data:
+  kaggle_dataset: "navoneel/brain-mri-images-for-brain-tumor-detection"
+  class_names:
+    - "no_tumor"
+    - "tumor"
+  class_folders:
+    no_tumor: ["no"]
+    tumor: ["yes"]
+  image_size: [300, 300]
+  channels: 3
+  validation_split: 0.15
+  test_split: 0.15
+  random_seed: 42
+  supported_extensions: [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"]
+
+model:
+  architecture: "EfficientNetB3"
+  weights: "imagenet"
+  dropout_rate: 0.4
+  dense_units: 256
+  num_classes: 1
+  last_conv_layer: null  # auto-detect if null
+  gradcam_alpha: 0.45
+
+training:
+  batch_size: 16
+  epochs: 30
+  learning_rate: 0.0001
+  fine_tune_at: 120
+  early_stopping_patience: 7
+  reduce_lr_patience: 4
+  reduce_lr_factor: 0.5
+  min_learning_rate: 1.0e-7
+  use_class_weights: true
+
+augmentation:
+  rotation_range: 20
+  width_shift_range: 0.15
+  height_shift_range: 0.15
+  zoom_range: 0.15
+  horizontal_flip: true
+  fill_mode: "nearest"
+
+paths:
+  data_dir: "data"
+  raw_data_dir: "data/raw"
+  model_dir: "models"
+  output_dir: "outputs"
+  model_filename: "efficientnetb3_brain_tumor.keras"
+  history_filename: "training_history.json"
+  metrics_filename: "evaluation_metrics.json"
+
+dashboard:
+  title: "Brain Tumor XAI Dashboard"
+  subtitle: "EfficientNetB3 Classification with Grad-CAM Visual Attribution"
+  page_icon: "🧠"
+  heatmap_colormap: "jet"
